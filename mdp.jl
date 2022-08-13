@@ -8,43 +8,32 @@ using Printf
 
 
 @kwdef struct MetaMDP
-    n_action::Int = 1
     cost::Float64 = 0.001
     max_step::Int = 100
     prior::Beta = Beta(1,1)
-    alternative::Float64 = 0.5
 end
 
-# ---------- World States and Actions---------- #
+# ---------- World State---------- #
 
-State = Vector{Float64}
-sample_state(m::MetaMDP) = rand(m.prior, m.n_action)
-Action = Int
-actions(m) = 0:m.n_action  # 0 means picking the alternative
+State = Float64
+sample_state(m::MetaMDP) = rand(m.prior)
 
 # ---------- Mental States ---------- #
 
-mutable struct Belief
+struct Belief
     time_step::Int
-    heads::Vector{Int}  # total positive evidence for each item
-    tails::Vector{Int}  # total negative evidence for each item
+    heads::Int  # total positive evidence
+    tails::Int  # total negative evidence
 end
-initial_belief(m::MetaMDP) = Belief(1, zeros(m.n_action), zeros(m.n_action))
-sample_state(m::MetaMDP, b::Belief) = rand(posterior(m, b))
-Base.copy(b::Belief) = Belief(b.time_step, copy(b.heads), copy(b.tails))
 
-"Distribution of s[a] given b"
-function posterior(m::MetaMDP, b::Belief, a::Action)
-    (;α, β) = m.prior
-    α += b.heads[a]; β += b.tails[a]
-    Beta(α, β)
-end
+initial_belief(m::MetaMDP) = Belief(1, 0, 0)
+sample_state(m::MetaMDP, b::Belief) = rand(posterior(m, b))
 
 "Distribution of s given b"
 function posterior(m::MetaMDP, b::Belief)
-    map(actions(m)[2:end]) do a
-        posterior(m, b, a)
-    end |> product_distribution
+    (;α, β) = m.prior
+    α += b.heads; β += b.tails
+    Beta(α, β)
 end
 
 # ---------- Computations ---------- #
@@ -55,17 +44,16 @@ Computation = Int
 
 "Allowable computations in each belief state. Implements max_step"
 function computations(m::MetaMDP, b::Belief)
-    b.time_step >= m.max_step && return ⊥:⊥  # forced to terminate
-    0:m.n_action
+    b.time_step >= m.max_step ? (⊥,) : (⊥, 1)
 end
 
 # ---------- Transition Function ---------- #
 
-"Full transtion function. Updates the belief, sampling from T(b,c,s)"
-function transition!(m::MetaMDP, b::Belief, c::Computation, s::State)::Belief
-    obs_dist = Bernoulli(s[c])
+"Full transtion function. Samples from T(b,c,s)"
+function transition(m::MetaMDP, b::Belief, c::Computation, s::State)::Belief
+    obs_dist = Bernoulli(s)
     o = rand(obs_dist)
-    bayes_update!(b, c, o)
+    bayes_update(b, c, o)
 end
 
 "Marginal transition function. Returns the distribution T(b,c)
@@ -73,43 +61,39 @@ end
     The distribution is represented as a tuple of (probability, next_belief) pairs.
 "
 function transition(m::MetaMDP, b::Belief, c::Computation)
-    obs_dist = Bernoulli(mean(posterior(m, b, c)))
+    obs_dist = Bernoulli(mean(posterior(m, b)))
     map((false, true)) do o
         p = pdf(obs_dist, o)
-        b′ = bayes_update!(copy(b), c, o)
-
+        b′ = bayes_update(b, c, o)
         (p, b′)
     end
 end
 
 "Updates the belief based on the outcome of a computation."
-function bayes_update!(b::Belief, c::Computation, o::Bool)::Belief
-    b.time_step += 1
-    if o
-        b.heads[c] += 1
-    else
-        b.tails[c] += 1
-    end
-    b
+function bayes_update(b::Belief, c::Computation, o::Bool)::Belief
+    # we don't actually use c, but keep it in definition for consistency
+    Belief(b.time_step+1, b.heads + o, b.tails + (1-o))
 end
 
 # ---------- Reward Function ---------- #
 
+Action = Bool
+actions(m) = (true, false)  # accept, reject
+
 "Cost of computation. Prettyyyy straightforward."
-function cost(m::MetaMDP, b::Belief, c::Int)::Float64
+function cost(m::MetaMDP, b::Belief, c::Computation)::Float64
     m.cost
 end
 
 "Utility function U((s, a)"
-function utility(m::MetaMDP, s::State, a::Int)
-    a == 0 && return m.alternative
-    s[a]
+function utility(m::MetaMDP, s::State, a::Action)
+    a ? s : 1-s
 end
 
 "Expected utility function E[U(s, a) | s ~ b]"
-function utility(m::MetaMDP, b::Belief, a::Int)
-    a == 0 && return m.alternative
-    mean(posterior(m, b, a))
+function utility(m::MetaMDP, b::Belief, a::Action)
+    Es = mean(posterior(m, b))
+    utility(m, Es, a)  # this only works because the utility function is linear!
 end
 
 "Selects actions"
@@ -163,16 +147,3 @@ end
 
 # for do block syntax
 rollout(callback::Function, policy; kws...) = rollout(policy; kws..., callback=callback)
-
-
-# ---------- technical stuff ---------- #
-# This allows us to put beliefs in Dicts and Sets 
-# (doesn't work for mutable objects by default)
-
-function equalstruct(s1::T, s2::T) where T
-    all(getfield(s1, f) == getfield(s2, f)
-        for f in fieldnames(T))
-end
-
-Base.:(==)(b1::Belief, b2::Belief) = equalstruct(b1, b2)
-Base.hash(b::Belief) = key_fn(b)
