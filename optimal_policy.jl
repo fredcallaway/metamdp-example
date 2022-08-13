@@ -2,10 +2,6 @@ using Memoize
 using StatsFuns: softmax
 using StatsBase
 
-function key_fn(b::Belief)
-    hash(b.heads, hash(b.tails, hash(b.time_step)))
-end
-
 struct BackwardsInduction
     m::MetaMDP
     cache::Dict{UInt64, Float64}
@@ -14,7 +10,7 @@ BackwardsInduction(m::MetaMDP) = BackwardsInduction(m, Dict{UInt64, Float64}())
 
 function V(solution::BackwardsInduction, b::Belief)
     (;cache, m) = solution
-    key = key_fn(b)
+    key = hash(b)
     haskey(cache, key) && return cache[key]
     return cache[key] = maximum(Q(solution, b, c) for c in computations(m, b))
 end

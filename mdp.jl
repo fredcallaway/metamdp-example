@@ -156,7 +156,6 @@ function rollout(policy::Policy, b=initial_belief(m), s=sample_state(m, b), logg
             return (;reward, b, s)
         else
             transition!(m, b, c, s)
-            println(b)
             reward -= cost(m, b, c)
         end
     end
@@ -165,12 +164,15 @@ end
 # for do block syntax
 rollout(callback::Function, policy; kws...) = rollout(policy; kws..., callback=callback)
 
-# function Base.show(io::IO, b::Belief)
-#     print(io, "[ ")
-#     counts = map(1:length(b.counts)) do i
-#         h, t = b.counts[i]
-#         i == b.focused ? @sprintf("<%02d %02d>", h, t) : @sprintf(" %02d %02d ", h, t)
-#     end
-#     print(io, join(counts, " "))
-#     print(io, " ]")
-# end
+
+# ---------- technical stuff ---------- #
+# This allows us to put beliefs in Dicts and Sets 
+# (doesn't work for mutable objects by default)
+
+function equalstruct(s1::T, s2::T) where T
+    all(getfield(s1, f) == getfield(s2, f)
+        for f in fieldnames(T))
+end
+
+Base.:(==)(b1::Belief, b2::Belief) = equalstruct(b1, b2)
+Base.hash(b::Belief) = key_fn(b)
