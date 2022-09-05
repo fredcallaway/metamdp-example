@@ -1,11 +1,10 @@
 """
-Defines a metalevel MDP for the Bernoulli metalevel control problem (Hay et al. 2012)
+Defines a metalevel MDP for tallying.
 """
 
 using Distributions
 using Base: @kwdef
 using Printf
-
 
 @kwdef struct MetaMDP
     cost::Float64 = 0.001
@@ -26,7 +25,7 @@ struct Belief
     tails::Int  # total negative evidence
 end
 
-initial_belief(m::MetaMDP) = Belief(1, 0, 0)
+initial_belief(m::MetaMDP) = Belief(0, 0, 0)
 sample_state(m::MetaMDP, b::Belief) = rand(posterior(m, b))
 
 "Distribution of s given b"
@@ -129,8 +128,7 @@ function (policy::RandomPolicy)(b::Belief)  # defines policy(b)
     isempty(non_terminal) ? ⊥ : rand(non_terminal)
 end
 
-function rollout(policy::Policy, b=initial_belief(m), s=sample_state(m, b), logger=(b, c)->nothing)
-    m = policy.m
+function rollout(policy::Policy; m=policy.m, b=initial_belief(m), s=sample_state(m, b), logger=(b, c)->nothing)
     reward = 0.
     while true
         c = policy(b)
@@ -139,7 +137,7 @@ function rollout(policy::Policy, b=initial_belief(m), s=sample_state(m, b), logg
             reward += term_reward(m, b, s)
             return (;reward, b, s)
         else
-            transition!(m, b, c, s)
+            b = transition(m, b, c, s)
             reward -= cost(m, b, c)
         end
     end
