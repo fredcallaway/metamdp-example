@@ -4,7 +4,6 @@ Defines a metalevel MDP for tallying.
 
 using Distributions
 using Base: @kwdef
-using Printf
 
 @kwdef struct MetaMDP
     cost::Float64 = 0.001
