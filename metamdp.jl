@@ -1,116 +1,155 @@
 """
-Defines a metalevel MDP for tallying.
+    Defines abstract metamdp interface.
+
+Notation:
+    - m is a mental state
+    - c is a computation
+    - w is a world state
+    - a is a world action
 """
 
 using Distributions
 
-abstract type MetaMDP{M,W,C,A} end
+"""
+    MetaMDP
+
+Abstract type for metalevel MDPs.
+"""
+abstract type MetaMDP end
 
 # ---------- World State---------- #
 
-function sample_state(mdp::MetaMDP{M,W})::W where {M,W}
-    error("sample_state(::$(typeof(mdp))) not implemented")
-end
+"""
+    sample_world_state(mdp::MetaMDP)
+
+Samples a world state.
+"""
+function sample_world_state end
+
+"""
+    initial_mental_state(mdp::MetaMDP)
+    initial_mental_state(mdp::MetaMDP, w)
+
+The mental state when the episode begins. Can optionally depend on the world
+state.
+"""
+function initial_mental_state end
 
 
-# ---------- Mental States ---------- #
+initial_mental_state(mdp::MetaMDP) = initial_mental_state(mdp)
 
-struct M
-    time_step::Int
-    heads::Int  # total positive evidence
-    tails::Int  # total negative evidence
-end
+"""
+    belief(mdp::MetaMDP, m)
 
-function initial_mental_state(::MetaMDP{M,W})::M where {M,W}
-end
+Distribution of w given m.
+"""
+function belief end
 
-function initial_mental_state(mdp::MetaMDP{M,W}, ::W)::M where {M,W}
-    initial_mental_state(mdp)
-end
+"""
+    termination_operation(mdp::MetaMDP)
 
-"Distribution of w given m"
-function belief(::MetaMDP{M}, ::M) where M
-end
+The termination operation for the given MetaMDP.
+"""
+function termination_operation end
 
-# ---------- Computations ---------- #
+"""
+    computations(mdp::MetaMDP, m)
 
-"The termination operation."
-function termination_operation(::MetaMDP{M,W,C})::C where {M,W,C}
-    # todo
-end
+Allowable computations in a mental state. Does NOT include termination.
+"""
+function computations end
 
-termination_operation(::MetaMDP{M,W,Int}) where {M,W} = 0
-termination_operation(::MetaMDP{M,W,String}) where {M,W} = "TERM"
-termination_operation(::MetaMDP{M,W,Symbol}) where {M,W} = :TERM
+"""
+    sample_transition(mdp::MetaMDP, m, c, w)
 
-"Allowable computations in each mental state. Does NOT include termination."
-function computations(::MetaMDP{M,W,C}, ::M)::Tuple{Vararg{C}} where {M,W,C}
-    # todo
-end
+Full transtion function. Samples from T(m,c,w)
+"""
+function sample_transition end
 
-# ---------- Transition Function ---------- #
+"""
+    transition(mdp::MetaMDP, m, c)
 
-"Full transtion function. Samples from T(m,c,w)"
-function sample_transition(::MetaMDP{M,W,C}, ::M, c::C, w::W)::M where {M,W,C}
-    # todo
-end
+Marginal transition function. Returns the distribution T(m,c), represented as
+a tuple of (probability, next_mental_state) pairs.
+"""
+function transition end
 
-"Marginal transition function. Returns the distribution T(m,c)
+"""
+    actions(mdp::MetaMDP)
 
-    The distribution is represented as a tuple of (probability, next_mental_state) pairs.
-"
-function transition(::MetaMDP{M,W,C}, ::M, ::C) where {M,W,C}
-    # todo
-end
+A Tuple of all possible world actions.
+"""
+function actions end
 
-# ---------- Reward Function ---------- #
-"A Tuple of all possible world actions."
-function actions(::MetaMDP{M,W,C,A})::Tuple{A} where {M,W,C,A}
-    # todo
-end
+"""
+    cost(mdp::MetaMDP, m, c)
 
-"Cost of computation. Should be positive."
-function cost(::MetaMDP{M,W,C,A}, ::M, ::C)::Float64 where {M,W,C,A}
-    # todo
-end
+Cost of computation. Should be positive.
+"""
+function cost end
 
-"Utility function U(w, a)"
-function utility(::MetaMDP{M,W,C,A}, ::W, ::A)::Float64 where {M,W,C,A}
-    # todo
-end
+"""
+    utility(mdp::MetaMDP, w, a)
 
-"Expected utility function E[U(w, a) | w ~ m]"
-function utility(mdp::MetaMDP{M,W,C,A}, m::M, a::A)::Float64 where {M,W,C,A}
-    # this default implementation assumes mean(f, B) is defined for the belief type B
-    mean(belief(mdp, m)) do w
-        utility(mdp, w, a)
-    end
-end
+The utility of executing an action in a world state, U(w, a)
+"""
+function utility end
 
-"Selects actions."
-function action_policy(mdp::MetaMDP{M,W,C,A}, m::M)::A where {M,W,C,A}
+"""
+    expected_utility(mdp::MetaMDP, m, a)
+
+Expected utility function E[U(w, a) | w ~ m].
+"""
+function expected_utility end
+
+"""
+    action_policy(mdp::MetaMDP, m)
+
+Selects world actions given mental states. Called when terminating computation.
+"""
+function action_policy(mdp::MetaMDP, m)
     argmax(actions(m)) do a  # man, I love Julia
         utility(mdp, m, a)
     end
 end
 
-"Full termination reward"
-function term_reward(mdp::MetaMDP{M,W}, m::M, w::W)::Float64 where {M,W}
+"""
+    term_reward(mdp::MetaMDP, m, w)
+
+Full termination reward, conditional on world state.
+"""
+function term_reward(mdp::MetaMDP, m, w)
     a = action_policy(mdp, m)
     utility(mdp, w, a)
 end
 
-"Marginal termination reward"
-function term_reward(mdp::MetaMDP, m::M)
+"""
+    term_reward(mdp::MetaMDP, m)
+
+Marginal termination reward.
+"""
+function term_reward(mdp::MetaMDP, m)
     maximum(actions(m)) do a  # seriously, are you seeing this?
         utility(mdp, b, a)
     end
 end
 
-# ---------- Policies ---------- #
-
+"Abstract type for metalevel policies."
 abstract type MetaPolicy end
 
+
+"""
+    select_computation(policy::MetaPolicy, m)
+
+Selects a computation to perform in the given mental state.
+"""
+function select_computation end
+
+"""
+    RandomMetaPolicy(mdp::MetaMDP, p_stop::Float64)
+
+A policy that executes random computations or terminates with fixed probability.
+"""
 struct RandomMetaPolicy <: MetaPolicy
     mdp::MetaMDP
     p_stop::Float64
@@ -123,13 +162,31 @@ function select_computation(policy::RandomMetaPolicy, m)
     isempty(cs) ? ⊥ : rand(cs)
 end
 
-function rollout(policy::MetaPolicy; mdp=policy.mdp, s=sample_state(mdp), logger=(m, c)->nothing, max_step=1000)
+"""
+    rollout(policy::MetaPolicy; mdp=policy.mdp, s=sample_world_state(mdp), logger=false, max_step=1000)
+
+Runs a single episode of a policy. Optionally specify:
+- an mdp (required if policy has no mdp attribute),
+- a state to begin from (otherwise sampled randomly)
+- a maximum number of time steps (default 1000)
+- a logging function logger(m,c) to call at each step
+
+Note that the logger can also be defined as the first argument, which allows
+do block syntax. For example, to save a record of mental states and computations:
+
+    record = []  # should add a type annotation if you need it to be fast
+    rollout(policy) do m, c
+        push!(record, (m, c))
+    end
+
+"""
+function rollout(policy::MetaPolicy; mdp=policy.mdp, s=sample_world_state(mdp), max_step=1000, logger=false, )
     m = initial_mental_state(mdp)
     ⊥ = termination_operation(mdp)
     reward = 0.
     for _ in 1:max_step
         c = select_computation(policy, m)
-        logger(m, c)
+        logger && logger(m, c)
         if c == ⊥
             reward += term_reward(mdp, m, s)
             return (;reward, m, s)
