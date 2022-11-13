@@ -46,6 +46,13 @@ Distribution of w given m.
 function belief end
 
 """
+    computations(mdp::MetaMDP, m)
+
+Allowable computations in a mental state, **including termination**.
+"""
+function computations end
+
+"""
     termination_operation(mdp::MetaMDP)
 
 The termination operation for the given MetaMDP.
@@ -53,11 +60,14 @@ The termination operation for the given MetaMDP.
 function termination_operation end
 
 """
-    computations(mdp::MetaMDP, m)
+    nonterminal_computations(mdp::MetaMDP, m)
 
-Allowable computations in a mental state. Does NOT include termination.
+Allowable computations in a mental state, **excluding termination**.
 """
-function computations end
+function nonterminal_computations(mdp::MetaMDP, m)
+    filter(!isequal(termination_operation(mdp)), computations(m))
+end
+
 
 """
     sample_transition(mdp::MetaMDP, m, c, w)
@@ -109,7 +119,7 @@ Selects world actions given mental states. Called when terminating computation.
 """
 function action_policy(mdp::MetaMDP, m)
     argmax(actions(m)) do a  # man, I love Julia
-        utility(mdp, m, a)
+        expected_utility(mdp, m, a)
     end
 end
 
@@ -129,8 +139,8 @@ end
 Marginal termination reward.
 """
 function term_reward(mdp::MetaMDP, m)
-    maximum(actions(m)) do a  # seriously, are you seeing this?
-        utility(mdp, b, a)
+    maximum(actions(mdp)) do a  # seriously, are you seeing this?
+        expected_utility(mdp, m, a)
     end
 end
 
@@ -158,8 +168,8 @@ end
 function select_computation(policy::RandomMetaPolicy, m)
     ⊥ = termination_operation(policy.mdp)
     rand() < policy.p_stop && return ⊥
-    cs = computations(policy.mdp, m)
-    isempty(cs) ? ⊥ : rand(cs)
+    nonterminal = nonterminal_computations(policy.mdp, m)
+    isempty(nonterminal) ? ⊥ : rand(nonterminal)
 end
 
 """

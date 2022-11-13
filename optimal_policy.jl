@@ -1,25 +1,27 @@
+include("metamdp.jl")
+
 using Memoize
 using StatsBase: sample, Weights
 using StaticArrays: SVector 
 
-@memoize Dict function V(m::MetaMDP, b::Belief)
-    maximum(Q(m, b, c) for c in computations(m, b))
+@memoize Dict function V(mdp::MetaMDP, m)
+    maximum(Q(mdp, m, c) for c in computations(mdp, m))
 end
 
-function Q(m::MetaMDP, b::Belief, c::Int)
-    c == ⊥ && return term_reward(m, b)
-    sum(p * V(m, b′) for (p, b′) in transition(m, b, c)) - cost(m, b, c)
+function Q(mdp::MetaMDP, m, c::Int)
+    c == termination_operation(mdp) && return term_reward(mdp, m)
+    sum(p * V(mdp, m′) for (p, m′) in transition(mdp, m, c)) - cost(mdp, m, c)
 end
 
-struct OptimalPolicy <: Policy
-    m::MetaMDP
+struct OptimalPolicy <: MetaPolicy
+    mdp::MetaMDP
     β::Float64
 end
 
-function (policy::OptimalPolicy)(b::Belief)
-    (;m, β) = policy
-    argmax(computations(m, b)) do c
+function select_computation(policy::OptimalPolicy, m)
+    (;mdp, β) = policy
+    argmax(computations(mdp, m)) do c
         # doctors hate this one neat trick for sampling from a softmax
-        β * Q(m, b, c) + rand(Gumbel())
+        β * Q(mdp, m, c) + rand(Gumbel())
     end
 end
