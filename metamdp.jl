@@ -118,7 +118,7 @@ function expected_utility end
 Selects world actions given mental states. Called when terminating computation.
 """
 function action_policy(mdp::MetaMDP, m)
-    argmax(actions(m)) do a  # man, I love Julia
+    argmax(actions(mdp)) do a  # man, I love Julia
         expected_utility(mdp, m, a)
     end
 end
