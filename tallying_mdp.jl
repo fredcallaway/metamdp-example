@@ -88,7 +88,7 @@ function utility(mdp::TallyingMDP, w::WorldState, a::Action)
 end
 
 "Expected utility function E[U(s, a) | s ~ m]"
-function expected_utility(mdp::MetaMDP, m::TallyState, a::Action)
+function expected_utility(mdp::TallyingMDP, m::TallyState, a::Action)
     Es = mean(belief(mdp, m))
     utility(mdp, Es, a)  # this only works because the utility function is linear!
 end
