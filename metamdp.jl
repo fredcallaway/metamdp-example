@@ -28,15 +28,11 @@ function sample_world_state end
 
 """
     initial_mental_state(mdp::MetaMDP)
-    initial_mental_state(mdp::MetaMDP, w)
 
-The mental state when the episode begins. Can optionally depend on the world
-state.
+The mental state when the episode begins.
 """
 function initial_mental_state end
 
-
-initial_mental_state(mdp::MetaMDP) = initial_mental_state(mdp)
 
 """
     belief(mdp::MetaMDP, m)
