@@ -40,8 +40,10 @@ Computation = Int  # for clarity in type annotations; not neccesary
 termination_operation(mdp::TallyingMDP) = 0
 
 "Allowable computations in each belief state. Implements max_step"
-function computations(mdp::TallyingMDP, m::TallyState)
-    m.time_step >= mdp.max_step ? (0,) : (0, 1)
+function computations(mdp::TallyingMDP, m::TallyState; non_terminal=false)
+    a = non_terminal ? 1 : 0
+    b = m.time_step >= mdp.max_step ? 0 : 1
+    a:b
 end
 
 # ---------- Transition Function ---------- #

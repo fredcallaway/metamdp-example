@@ -1,6 +1,6 @@
 include("metamdp.jl")
 include("tallying_mdp.jl")
-include("optimal_policy.jl")
+include("backwards_induction.jl")
 
 using StatsPlots
 using DataFrames
@@ -17,6 +17,7 @@ edge_color = go_color
 function policy_graph(mdp; tmax=100)
     res = Any[]
     
+    policy = BackwardsInduction(mdp)
     todo = Set{TallyState}((initial_mental_state(mdp),))
     seen = Set{TallyState}()
 
@@ -28,7 +29,7 @@ function policy_graph(mdp; tmax=100)
         push!(seen, m)
         delta = m.heads - m.tails
 
-        if Q(mdp, m, 1) > term_reward(mdp, m)
+        if Q(policy, m, 1) > term_reward(mdp, m)
             color = go_color
             for (p, m′) in transition(mdp, m, 1)
                 push!(todo, m′)

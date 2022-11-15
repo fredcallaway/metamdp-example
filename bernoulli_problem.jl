@@ -4,7 +4,7 @@ Defines a metalevel MDP for the Bernoulli metalevel control problem (Hay et al. 
 
 using Distributions
 using Base: @kwdef
-using StaticArrays: setindex
+using StaticArrays
 
 include("metamdp.jl")
 
@@ -14,16 +14,17 @@ include("metamdp.jl")
 @kwdef struct BernoulliProblem{N} <: MetaMDP
     cost::Float64 = 0.001
     max_step::Int = 100
-    prior::Beta = Beta(1,1)
+    prior::Beta{Float64} = Beta(1,1)
     alternative::Float64 = 0.5
 end
 BernoulliProblem(N; kws...) = BernoulliProblem{N}(;kws...)
-n_action(mdp::BernoulliProblem{N}) where N = N
+n_arm(mdp::BernoulliProblem{N}) where N = N
 
 # ---------- World States and Actions---------- #
 
-sample_state(mdp::BernoulliProblem) = ntuple(x->rand(mdp.prior), Val(n_action(mdp)))
-actions(mdp) = 0:n_action(mdp)  # 0 means picking the alternative
+sample_world_state(mdp::BernoulliProblem) = ntuple(x->rand(mdp.prior), Val(n_arm(mdp)))
+actions(mdp) = 0:n_arm(mdp)  # 0 means picking the alternative
+arms(mdp) = 1:n_arm(mdp)
 
 # ---------- Mental States ---------- #
 
@@ -45,19 +46,27 @@ function belief(mdp::BernoulliProblem, m::BernoulliState, a)
     Beta(α, β)
 end
 
-function belief(mdp::BernoulliProblem, m::BernoulliState)
-    map(actions(mdp)[2:end]) do a
+function belief(mdp::BernoulliProblem{N}, m::BernoulliState) where N
+    map(SVector{N}(arms(mdp))) do a
         belief(mdp, m, a)
     end |> product_distribution
+end
+
+# This makes BackwardsInduction much faster
+function symmetry_breaking_hash(m::BernoulliState)
+    # double hashing is necessary b/c the sum of simple
+    # hashes can ignore important order information
+    mapreduce(hash ∘ hash, +, zip(m.heads, m.tails))
 end
 
 # ---------- Computations ---------- #
 
 termination_operation(mdp) = 0
 
-function computations(mdp::BernoulliProblem, m::BernoulliState)
-    m.time_step >= mdp.max_step && return 0:0  # forced to terminate
-    0:n_action(mdp)
+function computations(mdp::BernoulliProblem, m::BernoulliState; non_terminal=false)
+    a = non_terminal ? 1 : 0
+    b = m.time_step >= mdp.max_step ? 0 : n_arm(mdp)
+    a:b
 end
 
 # ---------- Transition Function ---------- #

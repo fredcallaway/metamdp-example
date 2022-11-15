@@ -1,5 +1,10 @@
 [deps]
+BayesianOptimization = "4c6ed407-134f-591c-93fa-e0f7c164a0ec"
+Distributed = "8ba89e20-285c-5b6f-9357-94700520ee1b"
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
+GaussianProcesses = "891a1506-143c-57d2-908e-e1f8e92e6de9"
 Measures = "442fdcdd-2543-5da2-b0f3-8c86c306513e"
 Memoize = "c03570c3-d221-55d1-a50c-7939bbd78826"
 QuadGK = "1fd47b50-473d-5c70-9696-f719f8f3bcdc"
+Sobol = "ed01d8cd-4d21-5b2a-85b4-cc3bdc58bad4"
+StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"

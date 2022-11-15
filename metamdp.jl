@@ -46,9 +46,10 @@ Distribution of w given m.
 function belief end
 
 """
-    computations(mdp::MetaMDP, m)
+    computations(mdp::MetaMDP, m; non_terminal=false)
 
-Allowable computations in a mental state, **including termination**.
+Allowable computations in a mental state. This includes the
+termination operation unless non_terminal=true.
 """
 function computations end
 
@@ -59,14 +60,6 @@ The termination operation for the given MetaMDP.
 """
 function termination_operation end
 
-"""
-    nonterminal_computations(mdp::MetaMDP, m)
-
-Allowable computations in a mental state, **excluding termination**.
-"""
-function nonterminal_computations(mdp::MetaMDP, m)
-    filter(!isequal(termination_operation(mdp)), computations(m))
-end
 
 
 """
@@ -160,15 +153,15 @@ function select_computation end
 
 A policy that executes random computations or terminates with fixed probability.
 """
-struct RandomMetaPolicy <: MetaPolicy
-    mdp::MetaMDP
+struct RandomMetaPolicy{MDP<:MetaMDP} <: MetaPolicy
+    mdp::MDP
     p_stop::Float64
 end
 
 function select_computation(policy::RandomMetaPolicy, m)
     ⊥ = termination_operation(policy.mdp)
     rand() < policy.p_stop && return ⊥
-    nonterminal = nonterminal_computations(policy.mdp, m)
+    nonterminal = computations(policy.mdp, m; non_terminal=true)
     isempty(nonterminal) ? ⊥ : rand(nonterminal)
 end
 
@@ -190,7 +183,8 @@ do block syntax. For example, to save a record of mental states and computations
     end
 
 """
-function rollout(policy::MetaPolicy; mdp=policy.mdp, s=sample_world_state(mdp), max_step=1000, logger=false, )
+function rollout(policy::MetaPolicy; mdp=policy.mdp, w=sample_world_state(mdp),
+                 max_step=1000, logger=false, warn_max_step=true)
     m = initial_mental_state(mdp)
     ⊥ = termination_operation(mdp)
     reward = 0.
@@ -198,15 +192,15 @@ function rollout(policy::MetaPolicy; mdp=policy.mdp, s=sample_world_state(mdp), 
         c = select_computation(policy, m)
         logger && logger(m, c)
         if c == ⊥
-            reward += term_reward(mdp, m, s)
-            return (;reward, m, s)
+            reward += term_reward(mdp, m, w)
+            return (;reward, m, w)
         else
-            m = sample_transition(mdp, m, c, s)
+            m = sample_transition(mdp, m, c, w)
             reward -= cost(mdp, m, c)
         end
     end
-    @warn "Hit max_step"
-    return (;reward, m, s)
+    warn_max_step && @warn "Hit max_step"
+    return (;reward, m, w)
 end
 
 # for do block syntax
