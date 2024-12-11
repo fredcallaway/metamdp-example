@@ -8,9 +8,12 @@ using StaticArrays
 
 include("metamdp.jl")
 
-# NOTE: we use a parameterized type here because the state type
-# depends on the number of items and we want the state type to
-# be inferrable from the MetaMDP type
+# NOTE: we use a parameterized type here (the {N}) because the state type
+# depends on the number of items and we want the state type to be inferrable
+# from the MetaMDP type. Similarly, we will use SVector{N} to represent the
+# world state and evidence. This fancy stuff isn't necessary, but it does
+# make the code faster.
+
 @kwdef struct BernoulliProblem{N} <: MetaMDP
     cost::Float64 = 0.001
     max_step::Int = 100
@@ -22,7 +25,11 @@ n_arm(mdp::BernoulliProblem{N}) where N = N
 
 # ---------- World States and Actions---------- #
 
-sample_world_state(mdp::BernoulliProblem) = ntuple(x->rand(mdp.prior), Val(n_arm(mdp)))
+function sample_world_state(mdp::BernoulliProblem{N}) where N
+    # see NOTE above above SVector{N}
+    SVector{N}(rand(mdp.prior, N))
+end
+
 actions(mdp) = 0:n_arm(mdp)  # 0 means picking the alternative
 arms(mdp) = 1:n_arm(mdp)
 
@@ -30,22 +37,24 @@ arms(mdp) = 1:n_arm(mdp)
 
 struct BernoulliState{N}
     time_step::Int
-    heads::NTuple{N,Int}  # total positive evidence for each item
-    tails::NTuple{N,Int}  # total negative evidence for each item
+    heads::SVector{N,Int}  # total positive evidence for each item
+    tails::SVector{N,Int}  # total negative evidence for each item
 end
 
-tuple_fill(v, N) = ntuple(x->v, Val(N))
 
 function initial_mental_state(mdp::BernoulliProblem{N}) where N
-    BernoulliState(0, tuple_fill(0, N), tuple_fill(0, N))
+    init = fill(0, SVector{N})  # e.g. [0, 0, 0]
+    BernoulliState(0, init, init)
 end
 
+"Belief about the value of one arm"
 function belief(mdp::BernoulliProblem, m::BernoulliState, a)
     (;α, β) = mdp.prior
     α += m.heads[a]; β += m.tails[a]
     Beta(α, β)
 end
 
+"Belief about the value of all arms (the joint distribution)"
 function belief(mdp::BernoulliProblem{N}, m::BernoulliState) where N
     map(SVector{N}(arms(mdp))) do a
         belief(mdp, m, a)
@@ -61,12 +70,12 @@ end
 
 # ---------- Computations ---------- #
 
-termination_operation(mdp) = 0
+termination_operation(mdp::BernoulliProblem) = 0
 
 function computations(mdp::BernoulliProblem, m::BernoulliState; non_terminal=false)
-    a = non_terminal ? 1 : 0
-    b = m.time_step >= mdp.max_step ? 0 : n_arm(mdp)
-    a:b
+    start = non_terminal ? 1 : 0  # assume terminal operation is 0
+    stop = m.time_step >= mdp.max_step ? 0 : n_arm(mdp)
+    start:stop
 end
 
 # ---------- Transition Function ---------- #
@@ -86,13 +95,15 @@ function transition(mdp::BernoulliProblem, m::BernoulliState, c)
     end
 end
 
+increment(arr, idx) = setindex(arr, arr[idx] + 1, idx)
+
 function bayes_update(m::BernoulliState, c, o::Bool)::BernoulliState
     (;time_step, heads, tails) = m
     time_step += 1
     if o
-        heads = setindex(heads, heads[c] + 1, c)
+        heads = increment(heads, c)
     else
-        tails = setindex(tails, tails[c] + 1, c)
+        tails = increment(tails, c)
     end
     BernoulliState(time_step, heads, tails)
 end

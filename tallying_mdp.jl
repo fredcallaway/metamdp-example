@@ -77,7 +77,7 @@ end
 # ---------- Reward Function ---------- #
 
 Action = Bool
-actions(mdp::TallyingMDP) = (true, false)  # accept, reject
+actions(mdp::TallyingMDP) = (true, false)  # option A or option B
 
 "Cost of computation. Prettyyyy straightforward."
 function cost(mdp::TallyingMDP, m::TallyState, c::Computation)
@@ -86,7 +86,11 @@ end
 
 "Utility function U((w, a)"
 function utility(mdp::TallyingMDP, w::WorldState, a::Action)
-    a ? w : 1-w
+    if a  # take option A
+        w  # we assume payoff is the proportion of cues in favor of the chosen option
+    else # take option B
+        1 - w
+    end
 end
 
 "Expected utility function E[U(s, a) | s ~ m]"
