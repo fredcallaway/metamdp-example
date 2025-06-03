@@ -18,7 +18,7 @@ include("metamdp.jl")
     cost::Float64 = 0.001
     max_step::Int = 100
     prior::Beta{Float64} = Beta(1,1)
-    alternative::Float64 = 0.5
+    alternative::Float64 = 0.0
 end
 BernoulliProblem(N; kws...) = BernoulliProblem{N}(;kws...)
 n_arm(mdp::BernoulliProblem{N}) where N = N
