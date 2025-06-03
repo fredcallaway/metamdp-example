@@ -180,7 +180,7 @@ do block syntax. For example, to save a record of mental states and computations
 
 """
 function rollout(policy::MetaPolicy; mdp=policy.mdp, w=sample_world_state(mdp),
-                 max_step=1000, logger=false, warn_max_step=true)
+                 max_step=1000, logger=(m, c)->nothing, warn_max_step=true)
     m = initial_mental_state(mdp)
     ⊥ = termination_operation(mdp)
     reward = 0.
@@ -191,7 +191,7 @@ function rollout(policy::MetaPolicy; mdp=policy.mdp, w=sample_world_state(mdp),
         else
             c = select_computation(policy, m)
         end
-        logger && logger(m, c)
+        logger(m, c)
         if c == ⊥
             reward += term_reward(mdp, m, w)
             return (;reward, m, w, step)
@@ -205,3 +205,18 @@ end
 
 # for do block syntax
 rollout(logger::Function, policy; kws...) = rollout(policy; kws..., logger=logger)
+
+function tracked_rollout(policy::MetaPolicy; kws...)
+    # a good guess of the type of m and c
+    m0 = initial_mental_state(policy.mdp)
+    T = @NamedTuple begin
+        m::typeof(m0)
+        c::eltype(computations(policy.mdp, m0))
+    end
+
+    history = T[]
+    roll = rollout(policy; kws...) do m, c
+        push!(history, (;m, c))
+    end
+    (;roll..., history)
+end
