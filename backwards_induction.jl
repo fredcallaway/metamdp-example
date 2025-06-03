@@ -31,6 +31,6 @@ end
 
 function select_computation(policy::BackwardsInduction, m)
     argmax(computations(policy.mdp, m)) do c
-        Q(policy, m, c)
+        Q(policy, m, c) + 1e-15 * rand()  # tie breaking
     end
 end
