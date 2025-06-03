@@ -184,19 +184,23 @@ function rollout(policy::MetaPolicy; mdp=policy.mdp, w=sample_world_state(mdp),
     m = initial_mental_state(mdp)
     ⊥ = termination_operation(mdp)
     reward = 0.
-    for _ in 1:max_step
-        c = select_computation(policy, m)
+    for step in 1:max_step
+        if step == max_step
+            warn_max_step && @warn "Hit max_step"
+            c = ⊥
+        else
+            c = select_computation(policy, m)
+        end
         logger && logger(m, c)
         if c == ⊥
             reward += term_reward(mdp, m, w)
-            return (;reward, m, w)
+            return (;reward, m, w, step)
         else
             m = sample_transition(mdp, m, c, w)
             reward -= cost(mdp, m, c)
         end
     end
-    warn_max_step && @warn "Hit max_step"
-    return (;reward, m, w)
+    @assert false
 end
 
 # for do block syntax
