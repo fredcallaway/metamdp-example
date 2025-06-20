@@ -2,54 +2,61 @@ include("metamdp.jl")
 include("bmps.jl")
 include("bernoulli_problem.jl")
 include("backwards_induction.jl")
-
+using Memoize
+using QuadGK
 # ---------- define VOI features ---------- #
 
 # To apply BMPS we have to define these three VOI features
 
+# expected value of terminating after executing the computation
 function voi1(mdp::BernoulliProblem, m, c)
     sum(transition(mdp, m, c)) do (p, m′)
         p * term_reward(mdp, m′)
-    end - cost(mdp, m, c)
+    end
 end
 
+# expected value of resolving all uncertainty about arm c
 function voi_action(mdp::BernoulliProblem{N}, m, c) where N
-    a_considered = c
-    # the SVector thing prevents allocating memory, super unnecessary optimization
-    eu = SVector{N}(expected_utility(mdp, m, a) for a in arms(mdp))
-    a_best, a_second = partialsortperm(eu, 1:2; rev=true)
-    competing_val = a_considered == a_best ? eu[a_second] : eu[a_best]
-    competing_val = max(competing_val, mdp.alternative)
-    expected_max(belief(mdp, m, a_considered), competing_val)
+    max_other = maximum(
+        expected_utility(mdp, m, a)
+        for a in arms(mdp)
+        if a != c
+    )
+    competing_val = max(max_other, mdp.alternative)
+    expected_max(belief(mdp, m, c), competing_val)
 end
 
+# expected value of resolving all uncertainty about all arms
 function vpi(mdp::BernoulliProblem, m)
     expected_max(belief(mdp, m), mdp.alternative)
 end
 
 # HELPERS
 
-# expected max of a Beta and a constant (could be done analytically)
+function integrate(f, lo, hi; atol=1e-8)
+    quadgk(f, lo, hi; atol)[1]  #[2] is error
+end
+
+# expected max of a Beta and a constant
 @memoize function expected_max(d::Beta, constant::Float64)
-    choose_new = quadgk(constant, 1., atol=1e-8) do x
+    expected_val_better = integrate(constant, 1.) do x
         pdf(d, x) * x
-    end |> first
-    choose_constant = cdf(d, constant) * constant
-    choose_new + choose_constant
+    end
+    expected_val_worse = cdf(d, constant) * constant
+    expected_val_better + expected_val_worse
 end
 
 # expected max of many Betas and a constant
 function expected_max(pd::Product{Continuous,<:Beta}, constant::Float64=-Inf)
-    components = pd.v
-    function max_cdf(x)
-        (constant < x) * mapreduce(*, components) do d
+    # very useful trick: https://en.wikipedia.org/wiki/Expected_value#Properties
+    # if the distribution can be negative, you need another term for the negative part
+    upper = integrate(constant, 1.) do x
+        cdf_max = mapreduce(*, pd.v) do d
             cdf(d, x)
         end
+        1 - cdf_max
     end
-    lo = 0.
-    hi = 1.
-    # Note: this only works for non-negative RVs (need an extra term otherwise)
-    quadgk(x->1-max_cdf(x), lo, hi, atol=1e-8)[1]
+    constant + upper
 end
 
 # ---------- test performance against optimal ---------- #
